@@ -1,0 +1,21 @@
+{% load i18n %}
+{% if form %}
+<form id="user_signup" action="{% url 'signup' %}" method="post">{% csrf_token %}
+  <div class="form-group">
+    {% if form.username.errors %}<div class="errornote">{{ form.username.errors }}</div>{% endif %}
+    {{ form.username }}<br/>
+    {% if form.password1.errors %}<div class="errornote">{{ form.password1.errors }}</div>{% endif %}
+    {{ form.password1 }}<br/>  
+    {% if form.password2.errors %}<div class="errornote">{{ form.password2.errors }}</div>{% endif %}
+    {{ form.password2 }}<br/>
+    {% if form.email.errors %}<div class="errornote">{{ form.email.errors }}</div>{% endif %}
+    {{ form.email }}<br/>
+    <input type="hidden" name="next" value="{{ next }}">  
+  </div>
+</form>
+{% if form.non_field_errors %}
+{% for error in form.non_field_errors %}
+<div class="errornote">{{ error }}</div>
+{% endfor %}
+{% endif %}
+{% endif %}

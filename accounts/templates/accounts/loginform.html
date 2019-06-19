@@ -1,0 +1,17 @@
+{% load i18n %}
+{% if form %}
+<form id="user_login" action="{% url 'login' %}" method="post">{% csrf_token %}
+  <div class="form-group">
+    {% if form.username.errors %}<div class="errornote">{{ form.username.errors }}</div>{% endif %}
+    {{ form.username }}<br/>
+    {% if form.password.errors %}<div class="errornote">{{ form.password.errors }}</div>{% endif %}
+    {{ form.password}}<br/>
+    <input type="hidden" name="next" value="{{ next }}">
+  </div>
+</form>
+{% if form.non_field_errors %}
+{% for error in form.non_field_errors %}
+<div class="errornote">{{ error }}</div>
+{% endfor %}
+{% endif %}
+{% endif%}

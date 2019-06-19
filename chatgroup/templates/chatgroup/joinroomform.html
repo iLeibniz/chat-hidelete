@@ -1,0 +1,15 @@
+{% if form %}
+<form id="xjoinchatroom" action="{% url 'xjoinroom' %}" method="post">
+  <div class="form-group">{% csrf_token %}
+    {% for field in form %}
+      {% if not field.is_hidden %}{{ field.label_tag }}{% endif %}{% if field.errors %}<div class="errornote">{{ field.errors }}</div>{% endif %}{{ field }}
+    {% endfor %}
+    <input type="hidden" name="next" value="{{ next }}">
+  </div>
+</form>
+{% if form.non_field_errors %}
+{% for error in form.non_field_errors %}
+<div class="errornote">{{ error }}</div>
+{% endfor %}
+{% endif %}
+{% endif %}

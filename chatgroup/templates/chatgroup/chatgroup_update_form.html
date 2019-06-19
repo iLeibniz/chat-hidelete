@@ -1,0 +1,43 @@
+{% load tz i18n %}
+{% localtime on%}
+<div class="modal-body">
+{% if form %}
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+    <h4 id="chatroom_update_modal_lable" class="modal-title">{% trans 'Chatroom Profile Change'%}</h4>
+</div> 
+<form id="update_chatroom" class="form-horizontal" action="{% url 'updateroom' %}{{form.instance.group_uuid}}/" method="post">
+  <div class="checkbox {% if form.instance.is_opening %}bg-primary{% else %}bg-danger{% endif %}"><label class="col-md-offset-4 col-xs-offset-4" for="id_is_opening">{{ form.is_opening }}<h4> {% trans 'Open inviting?' %}</h4></label></div>
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="form-group">
+      {% if field.name != 'is_opening' %}
+        {% if field.errors %}<div class="errornote"><div class="col-xs-1 col-sm-1"><span class="glyphicon glyphicon-chevron-down"><span></div>{{ field.errors }}</div>{% endif %}
+        {% if not field.is_hidden %}<div class="col-xs-4 col-sm-4">{{ field.label_tag }}</div>{% endif %}<div class="col-xs-8 col-sm-8 pull-right">
+        {% if field.name == 'invite_time' %}<input type="text" name="invite_time" value="{{ form.instance.invite_time|timezone:use_tz}}" class="form-control" disabled="" id="id_invite_time">
+        {% else %}{{ field }}{% endif %}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <input type="hidden" name="next" value="{{ next }}">
+</form>
+{% if form.non_field_errors %}
+{% for error in form.non_field_errors %}
+<div class="errornote">
+    {{ error }}
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+</div>
+<div class="row" style="margin-left: 30px;margin-top: -10px;"><h4>QRCode {% trans 'share'%}</h4>
+  <div id="copylink" onclick="select_all_text(this)"></div>
+<div id="qrcode" class="col-md-offset-3"></div></div>
+</div>
+<div class="modal-footer">
+	<button class="btn btn-default pull-left" onclick="delete_chatroom(this, '{% url 'updateroom' %}{{form.instance.group_uuid}}/?command=delete')" title="Delete Chatroom">{% trans 'Delete Chatroom' %}</button>
+	<button class="btn btn-primary" onclick="update_chatroom()">{% trans 'Submit' %}</button>
+</div>
+{% endlocaltime%}

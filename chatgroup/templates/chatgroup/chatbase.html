@@ -1,0 +1,230 @@
+{% extends "registration/base_site.html" %}
+{% load i18n static %}
+{% block extrastyle %}
+<link rel="stylesheet" href="{% static 'chatgroup/hidel.css'%}" >
+<link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap-fileinput/5.0.2/css/fileinput.min.css" crossorigin="anonymous">
+{% endblock %}
+{% block bodyattrs %}style="background: #4e4e48;"{% endblock%}
+{% block handleitem %}
+<li class="dropdown active">
+    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+        <span class="glyphicon glyphicon-globe"> {% trans 'ChatCenter' %}</span> <b class="caret"></b>
+    </a>
+    <ul class="dropdown-menu">
+		<li><a id="id_anewchatroom" data-toggle="modal" data-target="#newchatroom_modal"><span class="glyphicon glyphicon-th-large"> {% trans 'NewChatroom' %}</span></a></li>
+		<li class="divider"></li>
+		<li><a id="id_ajoinchatroom" data-toggle="modal" data-target="#joinchatroom_modal"><span class="glyphicon glyphicon-plus"> {% trans 'JoinChatroom' %}</span></a></li>
+    </ul>
+</li>
+{% endblock%}
+{% block content %}
+<div class="container" style="margin-top: -20px;">
+	<div class="row clearfix">
+		<div class="hidden-xs col-md-1 column">
+			<div id="qrcodedemo"></div>
+		</div>
+		<div class="group_nav hidden-xs col-md-3 column pre-scrollable" style="max-height:500px;height:500px;margin:0px;background: #2e3238;">
+			{% for group in chatgroups %}
+			<div class="chat_item slide-left" data-gid="{{group.group_uuid}}" data-groupname="{{group.group_name}}" data-members="{{group.members.all|length}}"  data-msgs="0" data-opening="true" onclick="change_group(this)">
+				<div class="ext" style="margin-top: 10px;"><span class="badge hidden">0</span></div>
+		        <div class="avatar">
+		            <img class="img" src="{% static '/'%}{{group.group_image}}" alt="" onclick="group_info(this)" data-gid="{{group.group_uuid}}">
+		        </div>
+		        <div class="info">
+		            <h3 class="nickname">
+		                <span class="nickname_text"><em>({{group.members.all|length}})</em> {{ group.group_name }}</span>
+		            </h3>
+		           <p class="msg">
+		           <span>{{ group.group_info }}</span>
+		           </p>
+		        </div>
+		    </div>
+		{% endfor %}
+		</div>
+		<div id="group_rooms" class="row col-xs-12 col-md-7" style="margin: 0px;background: #ddd;">
+			{% for group in chatgroups %}
+			<div id="g_{{ group.group_uuid}}" class="row hidden" style="margin:0px;">
+				<div class="row pre-scrollable scroll-content" style="max-height:414px;height:414px;" onscroll="content_scroll(this)">
+					<div class="row" style="margin: 0px;">
+					<div id="{{ group.group_uuid }}" class="row col-xs-12 col-md-12" style="margin:0px;padding:2px;">						
+					</div>
+					</div>
+					<div id="end_{{group.group_uuid}}" style="height:0px; overflow:hidden"></div>
+				</div>
+				<div class="row unread-chat hidden">
+					<div class="unread-bottom">
+						<a href="javascript:turn2newest()"><code class="bg-primary"><span class="unread-bottom-icon"></span><em>{% trans 'Latest Message' %}</em></code></a>
+					</div>
+				</div>
+			</div>
+			{% endfor %}
+			<div id="g_empty" class="row pre-scrollable" style="max-height:500px;height:500px;">
+				<div class="row" style="margin: 0px;">
+				<div class="row col-xs-12 col-md-12" style="margin:0px;padding:2px;">
+					<div class="message_empty">
+			            <p>{% trans 'Have no chatroom selected.' %}</p>
+			        </div>
+				</div>
+				</div>
+			</div>
+			<div id="editdiv" class="row hidden" style="background-color: #efefef;border-top: 2px solid #d6d6d6;">
+				<div class="btn-group" style="margin: 1px;">
+					<form id="upload_form" class="form-inline" action="" method="post" role="form" enctype="multipart/form-data">
+						{% csrf_token %}
+						{% for field in form %}
+						{% if field.name and field.name not in "image_video_file" %}
+						 {{field}}
+						 {% endif %}
+						 {% endfor %}
+					</form>
+					{% for field in form %}
+						{% if field.name and field.name == "image" %}
+						 <div class="btn btn-primary btn-file"><i class="glyphicon glyphicon-picture"></i>&nbsp;  <span class="hidden-xs"> {% trans 'Image' %}</span><input id="load_picture" type="file" name="image" accept="image/*" multiple onchange="imagechange(this)"></div>
+						 {% elif field.name and field.name == "video" %}
+						 <div class="btn btn-primary btn-file"><i class="glyphicon glyphicon-facetime-video"></i>&nbsp;  <span class="hidden-xs"> {% trans 'Video' %}</span><input id="load_video" type="file" name="video" accept="video/*" multiple onchange="imagechange(this)"></div>
+						 {% elif field.name and field.name == "file" %}
+						 <div class="btn btn-primary btn-file"><i class="glyphicon glyphicon-file"></i>&nbsp;  <span class="hidden-xs"> {% trans 'File' %}</span><input id="load_file" type="file" name="file" onchange="imagechange(this)"></div>
+						 {% endif %}
+					{% endfor %}
+
+				</div>
+				<div id="wslink_status" class="pull-right" style="padding-right: 20px;"><span class="glyphicon glyphicon-transfer" style="font-size:20px; color: green;padding-top: 5px;"></span></div>
+				<div class="row col-xs-12 col-sm-12 col-md-12 center-block">
+					<div class="row input-group" id="edit_block">
+						<div class="content" style="height: 51px;">
+						<pre id="editArea" class="flex edit_area ng-isolate-scope ng-valid ng-dirty pre-scrollable" style="white-space: pre-wrap;word-wrap: break-word;max-height: 51px;height: 51px;margin-top:1px;margin-right: -16px;"></pre>
+						</div>
+						<span class="input-group-btn">
+					        <button id="submit_id" class="btn btn-primary" type="button" style="font-size: 32px;" onclick="sendmsg('text'+msg_suffix);"><em class="glyphicon glyphicon-send"></em></button>
+					    </span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}
+{% block modalblock%}{{ block.super }}
+<div id="newchatroom_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="newroom_modal_lable" style="margin-top: 20px;display:none;">
+    <div class="modal-dialog modal-md" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 id="newroom_modal_lable" class="modal-title">{% trans 'Create New Chatroom' %}</h4>
+            </div>
+            <div class="modal-body"></div>
+            <div class="modal-footer"><button class="btn btn-primary center-block" onclick="create_chatroom()">{% trans 'CreateChatroom' %}</button></div>
+        </div>
+    </div>
+</div>
+<div id="joinchatroom_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="join_modal_lable" style="margin-top: 20px;display:none;">
+    <div class="modal-dialog modal-md" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <h4 id="join_modal_lable" class="modal-title">{% trans 'Join Chatroom' %}</h4>
+            </div>
+            <div class="modal-body"></div>
+            <div class="modal-footer"><button class="btn btn-primary center-block" onclick="xjoin_chatroom()">{% trans 'JoinChatroom' %}</button></div>
+        </div>
+    </div>
+</div>
+{% endblock%}
+{% block extrascript %}{{ block.super }}
+{% block opennew %}{% endblock %}
+{% block openjoin %}{% endblock %}
+<script type="text/javascript">
+function call_after_new_or_join(result){
+	// console.log($(".group_nav"));
+	if(result.redirect == dir){
+		$(".group_nav").each(function(index, g){
+			$(g).append(render("chatgroup_nav", result.chatgroup));
+		});
+		$("#g_empty").before(render("group_room_unit", result.chatgroup));
+		autolink();
+	}else{
+		location.href = "//"+ location.host + result.redirect;
+	}
+}
+function create_chatroom(){
+	var form = document.querySelector("#newchatroom");
+	const formdata = new FormData(form);
+	// console.log("create_chatroom url:  ", "{% url 'newchatroom'%}"+q);
+	$.ajax({
+		url:"{% url 'newchatroom'%}"+q,
+		type:"post",
+		data:formdata,
+		processData:false,
+		contentType:false,
+		clearForm:true,
+		success:function(result, status){
+			// console.log("create_chatroom", result);
+			if(result.redirect == dir){
+				$("#newchatroom_modal").modal("hide");
+				call_after_new_or_join(result);
+			}else{
+				location.href = "//"+ location.host + result.redirect;
+			}
+		},
+		error:function(errors, status){
+			var form = errors.responseJSON.form;
+			// console.log(status);
+			$("#newchatroom_modal .modal-body").html(form);
+		},
+	});
+}
+function xjoin_chatroom(){
+	// console.log("joinchatroom ajaxSubmit:  ", "{% url 'xjoinroom'%}"+q);
+	$("#xjoinchatroom").ajaxSubmit({
+		url:"{% url 'xjoinroom'%}"+q,
+		success:function(result, status){
+			// console.log("xjoinroom", status, result);
+			if(result.redirect == dir){
+				$("#joinchatroom_modal").modal("hide");
+				if(result.already_joined == false){
+					call_after_new_or_join(result);
+				}
+			}else{
+				location.href = "//"+ location.host + result.redirect;
+			}
+		},
+		error:function(error, status){
+			var form = error.responseJSON.form;
+			// console.log(status);
+			$("#joinchatroom_modal .modal-body").html(form);
+		},
+	});
+}
+window.onload = function(e){
+    // console.log("document.onready");
+    $.get("{% url 'xjoinroom' %}"+q, function(result, status){
+        // console.log(result);
+        $("#joinchatroom_modal .modal-body").html(result.form);
+        if(open_joinroom==true){
+	    	id_ajoinchatroom.click();
+	    }
+    });
+    $.get("{% url 'newchatroom' %}"+q, function(result, status){
+        // console.log(result);
+        $("#newchatroom_modal .modal-body").html(result.form);
+        if(open_newchatroom==true){
+	    	id_anewchatroom.click();
+	    }
+    });
+    if(need_call_chatload){alertkey();}
+};
+$(".modal").each(function(index, md){
+	$(md).on('hidden.bs.modal', function(e){
+		$(this).find(".errornote").remove();
+		$(this).find(".errorlist").remove();
+		if(dir == "{% url 'xjoinroom'%}" || dir == "{% url 'newchatroom'%}"){
+			location.href = "//" + location.host + "{% url 'chatcenter'%}";
+		}
+	});
+});
+</script>
+{% endblock %}

@@ -1,0 +1,219 @@
+{% load static %}
+{% autoescape off %}
+<script id='video_msg' type="text/javascript">
+    <div class="message <% if(data.toMe){ %> me <%}else{ %> you <%}%>" id="<%= data.mid %>">
+        <img class="avatar" src="<%= data.fromUserImgUrl %>" title="<%= data.fromUsername %>">
+        <div class="content">
+            <% if (!data.toMe) { %>
+            <p class="text-muted" style="margin: 0 8px;"><%= data.fromUsername %></p>
+            <% } %>
+            <div class="bubble <% if (data.toMe){ %> bubble_primary right <% }else{ %> bubble_default left <% } %> no_arrow">
+                <div class="bubble_cont">
+                    <div class="video">
+                        <img class="msg-img" src="<%= data.msgImgDataUrl %>" style="max-width: 160px;max-height: 200px;"
+                            onload="turn2newest(this)"
+                        <% if(data.msgFileUrl != ""){ %>
+                        	onclick="show_video(this, '/static/<%= data.msgFileUrl%>')"		
+                        <% } %>>
+                        <i class="web_wechat_paly"></i>
+                        <p class="loading <% if(data.msgFileUrl != ''){ %>hidden<% } %>">
+                        <img src="//res.wx.qq.com/a/wx_fed/webwx/res/static/img/xasUyAI.gif" alt="">
+                        </p>
+                    </div>
+                    <i class="ico_fail web_wechat_message_fail hidden" title="发送失败"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+<script id='file_msg' type="text/javascript">
+    <div class="message <% if(data.toMe){ %> me <%}else{ %> you <%}%>" id="<%= data.mid %>">
+        <img class="avatar" src="<%= data.fromUserImgUrl %>" title="<%= data.fromUsername %>">
+        <div class="content">
+            <% if (!data.toMe) { %>
+            <p class="text-muted" style="margin: 0 8px;"><%= data.fromUsername %></p>
+            <% } %>
+            <div class="bubble <% if (data.toMe){ %> bubble_primary right <% }else{ %> bubble_default left <% } %>  no_arrow">
+                <div class="bubble_cont">
+                    <div class="attach">
+                        <div class="attach_bd">
+                            <div class="cover">
+                            <i class="icon-unknown"></i>
+                            </div>
+                            <div class="cont">
+                                <p class="title"><%= data.msgFileName %></p>
+                                <div class="opr">
+                                    <span class="ng-binding"><%= data.msgFileSize %></span>
+                                    <span class="sep">|</span>
+                                    <span class="loading <% if(data.msgFileUrl != ''){ %>hidden<% } %>">
+                                    <img src="//res.wx.qq.com/a/wx_fed/webwx/res/static/img/xasUyAI.gif" alt="">
+                                    </span>
+                                    <% if(data.msgFileUrl == ''){ %>
+                                    	<a href="javascript:" onclick="upload_cancel('<%= data.mid %>')">取消</a>
+                                    <% }else{ %>
+                                    	<a  download='' href="/static/<%= data.msgFileUrl %>">下载</a>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <i class="ico_fail web_wechat_message_fail hidden" title="发送失败"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+<script id='image_msg' type="text/html">
+    <div class="message <% if(data.toMe){ %> me <%}else{ %> you <%}%>" id="<%= data.mid %>">
+        <img class="avatar" src="<%= data.fromUserImgUrl %>" title="<%= data.fromUsername %>">
+        <div class="content">
+            <% if (!data.toMe) { %>
+            <p class="text-muted" style="margin: 0 8px;"><%= data.fromUsername %></p>
+            <% } %>
+            <div class="bubble <% if (data.toMe){ %> bubble_primary right <% }else{ %> bubble_default left <% } %> no_arrow">
+                <div class="bubble_cont">
+                    <div class="picture">
+                        <img class="msg-img" src="<%= data.msgImgDataUrl %>" style="max-width: 250px;max-height: 300px;"
+                             onload="turn2newest()"
+                             <% if(data.msgFileUrl != ""){ %>
+                        	onclick="show_picture(this, '/static/<%= data.msgFileUrl%>')"		
+                        	<% } %>>
+                        <p class="loading <% if(data.msgFileUrl != ''){ %>hidden<% } %>">
+                            <img src="//res.wx.qq.com/a/wx_fed/webwx/res/static/img/xasUyAI.gif" alt="">
+                        </p>
+                    </div>
+                    <i class="ico_fail web_wechat_message_fail hidden" title="发送失败"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+<script id='text_msg' type="text/html">
+    <div class="message <% if(data.toMe){ %> me <%}else{ %> you <%}%>" id="<%= data.mid %>">
+        <img class="avatar" src="<%= data.fromUserImgUrl %>" title="<%= data.fromUsername %>">
+        <div class="content">
+            <% if (!data.toMe) { %>
+            <p class="text-muted" style="margin: 0 8px;"><%= data.fromUsername %></p>
+            <% } %>
+            <div class="bubble <% if (data.toMe){ %> bubble_primary right <% }else{ %> bubble_default left <% } %>">
+                <div class="bubble_cont">
+                    <div class="plain">
+                        <prem ondblclick="select_all_text(this)"><%- data.msgContent %></prem>
+                        <i class="ico_fail web_wechat_message_fail hidden" title="发送失败"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+<script id='system_msg' type="text/html">
+        <div class="message_system">
+            <div class="content <%= data.class %>">
+                <%= data.username %><%= data.msg_ending %>
+            </div>
+        </div>
+</script>
+<script id='text2_msg' type="text/html">
+    <div class="message {% templatetag openvariable %} if data.toMe {% templatetag closevariable %} me {% templatetag openvariable %} else {% templatetag closevariable %} you {% templatetag openvariable %} /if {% templatetag closevariable %}"  id="<%= data.mid %>">
+        <img class="avatar" src="{% templatetag openvariable %} data.fromUserImgUrl {% templatetag closevariable %}" title="{% templatetag openvariable %} data.fromUsername {% templatetag closevariable %}">
+        <div class="content">
+            {% templatetag openvariable %} if !data.toMe {% templatetag closevariable %}
+            <p class="text-muted" style="margin: 0 8px;">{% templatetag openvariable %} data.fromUsername {% templatetag closevariable %}</p>
+            {% templatetag openvariable %} /if {% templatetag closevariable %}
+            <div class="bubble {% templatetag openvariable %} if data.toMe {% templatetag closevariable %} bubble_primary right {% templatetag openvariable %} else {% templatetag closevariable %} bubble_default left {% templatetag openvariable %} /if {% templatetag closevariable %}">
+                <div class="bubble_cont">
+                    <div class="plain">
+                        <prem>{% templatetag openvariable %}@ data.msgContent {% templatetag closevariable %}</prem>
+                        <img class="ico_loading hidden" src="https://res.wx.qq.com/a/wx_fed/webwx/res/static/img/xasUyAI.gif" alt="">
+                        <i class="ico_fail web_wechat_message_fail hidden" title="重新发送"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+<script id='picture_preview' type="text/html">
+    <div id="id_img_preview" class="ng-isolate-scope" current="current" image-list="imageList">
+        <div class="mask preview_mask"></div>
+        <div class="img_preview_container" id="preview_container">
+            <div class="img_container" id="img_container">
+                <div class="img_wrp pre-scrollable" id="img_dom" style="max-height: <%= data.height %>px;">
+                    <img id="img_preview" class="rotate0" ng-show="isLoaded" src="<%= data.msgLoadUrl %>"
+                    <% if(data.mleft > 0){ %>
+                    style="width:<%= data.width %>px; margin-left: <%= data.mleft %>px;"
+                    <% } %>>
+                    
+                </div>
+            </div>
+            <div class="img_opr_container" id="img_opr_container">
+                <ul class="img_opr_list">
+                    <li class="img_opr_item">
+                        <a download="" target="_blank" href="<%= data.msgLoadUrl %>" title="下载图片">
+                            <i class="web_wechat_download"></i>&nbsp;
+                        </a>
+                    </li>
+                    <li class="img_opr_item" ng-hide="isIE">
+                        <a href="javascript:image_rotate()" title="旋转图片">
+                            <i class="web_wechat_turn"></i>&nbsp;
+                        </a>
+                    </li>
+                    <li class="img_opr_item" ng-hide="isIE">
+                        <a href="javascript:close_preview()" class="" title="关闭"><i class="web_wechat_close-window"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</script>
+<script id="video_preview" type="text/html">
+    <div id="id_video_preview" class="ngdialog default microvideo_preview_dialog">
+        <div class="ngdialog-overlay"></div>
+        <div class="ngdialog-content" <% if(data.mleft==0){ %>style="margin-left:0px;"<%}%>>
+            <div class="jp-jplayer microvideo loaded"  <% if(data.mleft == 0){ %>
+                style="width:<%= data.scrwidth %>px; height:<%= data.height %>px;"
+                <% } %>>
+                <video id="jp_video_0" src="<%= data.msgLoadUrl %>" controls="controls" autoplay="" 
+                     <% if(data.mleft > 0){ %>
+                    style="width:800px; height:500px;"
+                    <% }else{ %>
+                    style="width:<%= data.width %>px; height:<%= data.height %>px;"
+                    <% } %>
+                    ></video>
+            </div>
+            <div class="ngdialog-close" onclick="close_preview()"><i class="web_wechat_close-window"></i></div>
+        </div>
+    </div>
+</script>
+<script id="chatgroup_nav" type="text/html">
+	<div class="chat_item slide-left" data-gid="<%=data.group_uuid%>" data-groupname="<%=data.group_name%>" data-members="<%= data.members%>"  data-msgs="0" data-opening="true" onclick="change_group(this)">
+		<div class="ext" style="margin-top: 10px;"><span class="badge hidden">0</span></div>
+        <div class="avatar">
+            <img class="img" src="{% static '/'%}<%= data.group_image %>" alt="" onclick="group_info(this)" data-gid="<%=data.group_uuid%>">
+        </div>
+        <div class="info">
+            <h3 class="nickname">
+                <span class="nickname_text"><em>(<%= data.members %>)</em><%= data.group_name %></span>
+            </h3>
+           <p class="msg">
+           <span><%= data.group_info %></span>
+           </p>
+        </div>
+    </div>
+</script>
+<script id="group_room_unit" type="text/html">
+<div id="g_<%= data.group_uuid %>" class="row hidden" style="margin:0px;">
+    <div class="row pre-scrollable scroll-content" style="max-height:414px;height:414px;" onscroll="content_scroll(this)">
+        <div class="row" style="margin: 0px;">
+        <div id="<%= data.group_uuid %>" class="row col-xs-12 col-md-12" style="margin:0px;padding:2px;">                       
+        </div>
+        </div>
+        <div id="end_<%=data.group_uuid%>" style="height:0px; overflow:hidden"></div>
+    </div>
+    <div class="row unread-chat hidden">
+        <div class="unread-bottom">
+            <a href="javascript:turn2newest()"><code class="bg-primary"><span class="unread-bottom-icon"></span><em>最新消息</em></code></a>
+        </div>
+    </div>
+</div>
+</script>
+{% endautoescape %}

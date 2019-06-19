@@ -1,0 +1,17 @@
+{% extends 'registration/base_site.html'%}
+{% load i18n %}
+{% block content%}
+{% if object %}
+<div class="col-md-4">
+<table class="table">
+<tr><td>{% trans "group_name" %}</td><td>{{object.group_name}}</td></tr>
+<tr><td>{% trans "group_info" %}</td><td>{{object.group_info}}</td></tr>
+<tr><td>{% trans "manager" %}</td><td>{{object.manager.username}}</td></tr>
+<tr><td>{% trans "members" %}</td><td>{% for m in object.members.all %}<li>{{m.username}}</li>{% endfor %}</td></tr>
+<tr><td>{% trans "checkin_method" %}</td><td>{{object.get_verbose_code}}</td></tr>
+<tr><td>{% trans "invite_code" %}</td><td>{{object.invite_code}}</td></tr>
+<tr><td>{% trans "invite_time" %}</td><td>{{object.invite_time}}</td></tr>
+</table>
+</div>
+{% endif %}
+{% endblock%}

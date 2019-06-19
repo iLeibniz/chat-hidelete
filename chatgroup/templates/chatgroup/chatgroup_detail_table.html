@@ -1,0 +1,35 @@
+{% load i18n tz %}
+{% localtime on%}
+{% if object %}
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+    <h4 id="chatroom_update_modal_lable" class="modal-title">Chatroom Profile</h4>
+</div> 
+<div class="modal-body">
+	{% if object.is_opening %}
+	<h4 class="bg-primary" style="padding:6px;height: 30px;"><span class="glyphicon glyphicon-ok-sign">{% trans "This chatroom is opening." %}</span></h5>
+	{% else %}
+	<h4 class="bg-danger" style="padding:6px;height: 30px;"><span class="glyphicon glyphicon-remove-sign">{% trans "This chatroom is closed." %}</span></h5>
+	{% endif %}
+<div class="row" style="margin: 0px;">
+<table class="table">
+<tr><td>{% trans "group_name" %}</td><td>{{object.group_name}}</td></tr>
+<tr><td>{% trans "group_info" %}</td><td>{{object.group_info}}</td></tr>
+<tr><td>{% trans "manager" %}</td><td>{{object.manager.username}}</td></tr>
+<tr><td style="width: 30%;">{% trans "members" %}</td><td><div class="pre-scrollable">{% for m in object.members.all %}<span class="label label-primary" style="margin:2px;">{{m.username}}</span>{% endfor %}</div></td></tr>
+<tr><td>{% trans "checkin_method" %}</td><td>{{object.get_verbose_code}}</td></tr>
+<tr><td>{% trans "invite_code" %}</td><td>{{object.invite_code}}</td></tr>
+<tr><td>{% trans "Accept joinment until" %}</td><td>{{object.invite_time|timezone:use_tz}}</td></tr>
+</table>
+</div>
+<div><h4>QRCode {% trans 'share' %}</h4><div id="copylink" onclick="select_all_text(this)"></div>
+<div id="qrcode" class="col-md-offset-3"></div></div>
+</div>
+<div class="modal-footer">
+	<button class="btn btn-default pull-left" onclick="leave_chatroom(this, '{% url 'updateroom' %}{{object.group_uuid}}/?command=leave')" title="Leave Chatroom">{% trans 'Leave Chatroom'%}</button>
+	<button class="btn btn-primary" data-dismiss="modal" aria-label="Close">{% trans 'Close'%}</button>
+</div>
+{% endif %}
+{% endlocaltime %}

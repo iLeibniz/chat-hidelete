@@ -1,0 +1,88 @@
+{% extends "registration/base_site.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div class="jumbotron">
+<div class="container">
+    {% if user.is_authenticated %}
+    <h2>{% trans 'Welcome,' %} {{user.username}}</h2>
+    <p>{% trans 'Now you need just one step to begin chating.' %}</p>
+    <p>{% trans 'You can create a new chatroom or join a room that your friend shared.'%}</p>
+    <p><a class="btn btn-primary btn-lg" href="{% url 'newchatroom' %}">{% trans 'NewChatroom'%}</a> or <a class="btn btn-primary btn-lg" href="{% url 'xjoinroom' %}">{% trans 'JoinChatroom'%}</a></p>
+    {% else %}
+    <h2>Hidelete.ml, {% trans 'building a secret chatroom'%}</h2>
+    <p>Hidelete.ml {% trans 'is a platform for chating secretly.'%} </p>
+    <p>{% trans 'No storaging data, and we will delete your account and data in deadline.'%}</p>
+    <p>{% trans 'Just need two steps, lets enjoy it right now.'%}</p>
+    <p><a id="id_asignup" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#signup_modal">{% trans 'Signup' %}</a>&nbsp;&nbsp;or&nbsp;  <a id="id_alogin" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#login_modal">{% trans 'Login' %}</a> </p>
+    {% endif %}
+</div>
+</div>
+{% endblock %}
+{% block extrascript %}{{block.super}}
+<script type="text/javascript">
+    function login() {
+        console.log(document.querySelector("#user_login"));
+        var formdata = new FormData(document.querySelector("#user_login"));
+        formdata.set("tz_offset", (new Date()).getTimezoneOffset());
+        $.ajax({
+            url:"{% url 'login'%}"+q,
+            data:formdata,
+            type:"POST",
+            processData: false,
+            contentType: false,
+            success:function(result, status){
+                location.href = "http://"+location.host+result.redirect;
+            },
+            error: function(errors, status){
+                form=errors.responseJSON.form;
+                $("#login_modal .modal-body").html(form);
+            },
+        });
+    }
+    $("#login_modal").on("hidden.bs.modal", function(e){
+        $(this).find(".errornote").remove();
+    });
+
+    function signup(){
+        var signup = document.querySelector("#user_signup");
+        const formdata = new FormData(signup);
+        formdata.set("tz_offset", (new Date()).getTimezoneOffset());
+        console.log(formdata.get("tz_offset"));
+        $.ajax({
+            url:"{% url 'signup'%}"+q,
+            type:"POST",
+            data: formdata,
+            processData: false,
+            contentType: false,
+            success:function(result, status){
+                location.href = "http://"+location.host+result.redirect;
+            },
+            error:function(errors, status){
+                form=errors.responseJSON.form;
+                $("#signup_modal .modal-body").html(form);
+            },
+        });
+    }
+    window.onload = function(){
+        $.get("{% url 'login' %}"+q, function(result, status){
+            $("#login_modal .modal-body").html(result.form);
+            if(open_login==true){
+                id_alogin.click();
+            }
+        });
+        $.get("{% url 'signup' %}"+q, function(result, status){
+            $("#signup_modal .modal-body").html(result.form);
+            if(open_signup==true){
+                id_asignup.click();
+            }
+        });
+        $(".modal").each(function(index, md){
+            $(md).on("hidden.bs.modal", function(e){
+                $(this).find(".errorlist").remove();
+                $(this).find(".errornote").remove();
+            });
+        });
+    };
+</script>
+{% endblock %}

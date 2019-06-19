@@ -1,0 +1,788 @@
+{% extends "chatgroup/chatbase.html" %}
+{% load i18n static %}
+{% block xs_group_nav %}
+	<li class="group_nav hidden-sm hidden-md hidden-lg">
+	    <div class="pre-scrollable">
+	        {% for group in chatgroups %}
+	        <div class="chat_item slide-left" data-gid="{{group.group_uuid}}" data-groupname="{{group.group_name}}" data-members="{{group.members.all|length}}"  data-msgs="0" data-opening="true" onclick="change_group(this)">
+	            <div class="ext" style="margin-top: 10px;"><span class="badge hidden">0</span></div>
+	            <div class="avatar">
+	                <img class="img" src="{% static '/'%}{{group.group_image}}" alt="" onclick="group_info(this)" data-gid="{{group.group_uuid}}">
+	            </div>
+	            <div class="info">
+	                <h3 class="nickname">
+	                    <span class="nickname_text"><em>({{group.members.all|length}})</em> {{ group.group_name }}</span>
+	                </h3>
+	               <p class="msg">
+	               <span>{{ group.group_info }}</span>
+	               </p>
+	            </div>
+	        </div>
+	        {% endfor %}
+	    </div>
+	</li>
+{% endblock %}
+{% block previewblock %}
+<div id="id_preview"></div>
+<video id='video_capture'  preload="meta" style='display:none' crossorigin="anonymous"></video>
+{% endblock %}
+{% block msgtemplate %}
+{% include 'chatgroup/msgtemplate.html' %}
+{% endblock %}
+{% block extrasource %}{{ block.super }}
+<script src="{% static "chatgroup/reconnecting-websocket.min.js" %}"></script>
+<script src="{% static "chatgroup/template-web.js" %}"></script>
+<script src="http://cdn.staticfile.org/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
+{% endblock %}
+{% block extrascript %}
+<script type="text/javascript">
+	var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
+    var ws_path = ws_scheme + '://' + window.location.host + "/ws/chat/";
+    console.log("Connecting to " + ws_path);
+    var chatSocket = new ReconnectingWebSocket(ws_path);
+	var from_username="{{user.username}}";
+	var msg_suffix="_msg";
+	var view_suffix="_preview";
+	var msgbox_height=500;
+	var xs_need_justify_shift = true;
+	var static_root="{% static '/' %}";
+	var ready_to_cancel = {};
+	var need_call_chatload = true;
+	var fmaxsize = {
+    	"image":20,
+    	"video":50,
+    	"file":100,
+    };
+    var msg_index = 0;
+	var uid="{{ user.id }}";
+	var gid=null;
+	var touid=null;
+	var toMe=true;
+	var fromUserImgUrl="{% static '/'%}{{request.user.user_image}}";
+	var joinlink;
+	var is_xs=false;
+	// var template = require('art-template');//this code line maybe due to break down the websocket connection
+	var v,vdata=null;
+	var rdatas={};
+	var g_history=null;
+	function Ghistory(){
+		previous=null;
+		current=null;
+		gnav_previous=null;
+		gnav_current=null;
+	};
+	var jurl=null;
+	var canvas = document.createElement("canvas");
+	var cxt = canvas.getContext('2d');
+	function Mdata(data){
+			this.mid=null;
+			this.uid=id_from_user.value;
+			this.gid=id_to_group.value;
+			this.touid=id_to_user.value;
+			this.msg_type="text";
+			this.fromUsername=from_username;
+			this.msgContent="";
+			this.toMe=true;
+			this.fromUserImgUrl=fromUserImgUrl;
+			this.msgImgDataUrl=null;
+			this.msgFileUrl=null;
+			this.msgFileSize=null;
+			this.doPost=true;
+	}
+	function mapdata(source, target){
+		target.mid=source.mid;
+		target.uid=source.from_user_id;
+		target.gid=source.to_group_id;
+		target.touid=source.to_user_id;
+		target.msg_type=source.msg_type;
+		target.fromUsername=source.from_username;
+		target.msgContent=source.content;
+		target.toMe=false;
+		target.fromUserImgUrl=fromUserImgUrl;
+		target.msgImgDataUrl=source.image;
+		target.msgFileUrl=source.image||source.video || source.file;
+		target.msgFileSize=null;
+		target.doPost=true;
+		return target;
+	}
+	function change_group(obj){
+		// console.log("window.innerwidth:", window.innerWidth);
+		if(window.innerWidth<768){
+			is_xs=true;
+		}
+		if(!($(obj).hasClass("active"))){
+			$("#id_to_group").attr("value", obj.dataset.gid);
+			// joinroom(obj);
+			change_show(obj);
+		}
+		if(is_xs){
+			$("#navgroup").click();
+			// document.querySelector(".navbar-brand").textContent=obj.dataset.groupname+" ("+obj.dataset.members+")";
+			document.querySelector(".navbar-brand").innerHTML=
+			"<span class='glyphicon glyphicon-comment'></sapn>&nbsp;"+"("+obj.dataset.members+")"+obj.dataset.groupname;
+		}
+	}
+	function change_show(obj){
+		g_history.previous = g_history.current;
+		g_history.gnav_previous = g_history.gnav_current;
+		g_history.current = $("#g_"+obj.dataset.gid);
+		g_history.gnav_current = obj;
+		if(g_history.gnav_previous){
+			$(g_history.gnav_previous).removeClass("active");
+		}
+		$(obj).addClass("active");
+		$(g_history.current).removeClass("hidden");
+		if(g_history.previous){
+			$(g_history.previous).addClass("hidden");
+		}
+		$("#editdiv").removeClass("hidden");
+		$("#g_empty").addClass('hidden');
+		handle_badge(obj.dataset.gid);
+	}
+	function handle_badge(gid, nplus){
+		if(gid){
+			var bds = $("div[data-gid='"+gid+"']");
+			if(!bds){return;}
+			// console.log(bds);
+			if(nplus==undefined){
+				bds.each(function(index, bd){
+					$(bd).attr("data-msgs","0");
+					$(bd).find(".badge").text("0");
+					$(bd).find(".badge").addClass("hidden");
+				});
+			}else{
+				bds.each(function(index, bd){
+					nplus = 1;
+					var norigin = $(bd).attr("data-msgs");
+					nplus = nplus+parseInt(norigin);
+					$(bd).attr("data-msgs", nplus);
+					$(bd).find(".badge").text(nplus);
+					$(bd).find(".badge").removeClass("hidden");
+				});
+				$("#g_"+gid).find("em").text(String(nplus)+" 条最新消息");
+				$(".glyphicon-th-list").css("color", "#1aa312");
+			}
+		}
+	}
+	function msg_signal(obj){
+		$(".glyphicon-th-list").css("color", "#fff");
+	}
+	function randomString(e, t = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678") {    
+	    e = e || 8;
+	    a = t.length,
+	    n = "";
+	    for (i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
+	    return n
+	}
+	// var textMsgRender=template.compile(m);//it is wrong because it maybe has not complete loading js file.
+	$(document).ready(function(){
+        // alert('roomName');
+        // chatSocket = new WebSocket('ws://' + window.location.host+'/ws/chat/');
+        //chatSocket function must be defined in ready() for global scope or django render {{roomname }} in server view
+        msgbox_height = document.querySelector(".scroll-content").clientHeight||414;
+        chatSocket.onmessage = function(e) {
+            data = JSON.parse(e.data);
+            if(data.command == "message"){
+            	// console.log(data.content);
+	            content = data.content;
+            	if(content.uid == id_from_user.value){
+            		content.toMe = true;
+            	}
+            	// var rdata = JSON.parse(data.content);
+            	// console.log(typeof rdata, rdata);
+	            append_msg(content.msg_type+msg_suffix, content, true);
+	            chatSocket.send(JSON.stringify({command:"flag_time"}));
+	        }else if(data.command == "unread_message"){
+	        	// console.log(data.content);
+	        	content = data.content;
+	            append_msg(content.msg_type+msg_suffix, content, true);
+	        }else if(data.command == "join_echo"){
+	        	clearInterval(g_history["join_"+data.room_id]);
+	        	g_history["join_"+data.room_id] = true;
+	        	handle_members(data);
+	        	// console.log(data.command, data);
+	        }else if(data.error == "ROOM_ACCESS_DENIED"){
+	        	console.error('websocket joinroom error, call autolink().')
+	        	autolink();
+	        	// clearInterval(heart_beat);
+	        }else if(data.command == "link_echo"){
+	        	console.log('websocket chatroom has linked.');
+	        	// clearInterval(heart_beat);
+	        }else if(data.command == "heart_beat"){
+	        	// console.log(data.message);
+	        	chatSocket.send(JSON.stringify({command:"heart_beat", message:"link_echo"}));
+	        }else if(data.command == "join_newer"){
+	        	console.log('chatroom has join_newer.');
+	        	// console.log(data);
+	        	handle_members(data);
+	        }else if(data.command == "leave_group"){
+	        	console.log('it has members to leave group.');
+	        	handle_members(data);
+	        }else if(data.command == "remove_users"){
+	        	console.log('it has members to be removed.');
+	        	handle_members(data);
+	        }else if(data.command == "leave_echo"){
+	        	console.log('you have left the chatroom.');
+	        }else{
+	        	console.log(data.command, data);
+	        }
+	        if(data.error == "ROOM_ACCESS_DENIED"){
+	        	$("#wslink_status span").css("color", "red");
+	        }else{
+				$("#wslink_status span").css("color", "green");
+	        }
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+			$("#wslink_status span").css("color", "red");
+        };
+        v = document.getElementById("video_capture");
+        v.addEventListener("loadeddata", function(){
+    		// $('#editArea').append("video eventlistening:"+v.src+"<br/><br/>");
+    		// canvas = document.createElement("canvas");
+			canvas.width=this.videoWidth;
+			canvas.height=this.videoHeight;
+			try{
+				cxt.drawImage(v, 0, 0, canvas.width, canvas.height);
+				// canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+				vdata.msgImgDataUrl=canvas.toDataURL("image/png");
+				vdata.filesize = canvas.width*canvas.height;
+			}catch(error){
+				vdata.msgImgDataUrl="{% static 'chatgroup/default4.jpg' %}";
+				vdata.filesize = 1000;
+			}finally{
+				append_msg("video"+msg_suffix, vdata, false);
+				vdata=null;
+				canvas.width=0;
+				canvas.height=0;
+			}
+    	});
+	});
+
+	function handle_members(data){
+		var items = $(".chat_item[data-gid='"+data.room_id+"']");
+		// console.log(data);
+		data["gid"] = data.room_id;
+		if(data.command=="leave_group" && data.members == 0){
+			items.find("em").html("(Closed)");
+			data['username'] = items.data("groupname");
+			data['msg_ending'] = " chatroom has closed.";
+			data['class'] = "bg-danger";
+			append_msg("system"+msg_suffix, data, false);
+			$(".chat_item[data-gid='"+data.room_id+"']").attr("data-opening", "false");
+			if(is_xs && $("#g_"+data.room_id).hasClass("hidden") == false){
+				document.querySelector(".navbar-brand").innerHTML=
+			"<span class='glyphicon glyphicon-comment'></sapn>&nbsp;"+"(Closed)"+items.data("groupname");
+			}
+		}else{
+			if(g_history["members_"+data.room_id] == undefined){
+				g_history["members_"+data.room_id] = new Set();
+			}
+			var gm = g_history["members_"+data.room_id];
+			if(data.command=="join_newer" && data.uid != uid){
+				data['msg_ending'] = "{% trans ' has joined.' %}";
+				if(gm.has(data.uid) == false){
+					gm.add(data.uid);
+					append_msg("system"+msg_suffix, data, false);
+				}
+			}else if(data.command == "leave_group"){
+				data['msg_ending'] = "{% trans ' has left.' %}";
+				gm.delete(data.uid);
+				// append_msg("system"+msg_suffix, data, false);
+			}else if(data.command == "remove_users"){
+				data['msg_ending'] = "{% trans ' has been removed.' %}";
+				// console.log(data.remove_users);
+				for(var i=0; i < data.remove_users.length; ++i){
+					usr = data.remove_users[i];
+					// console.log(usr);
+					gm.delete(usr.pk);
+					if(usr.pk == uid){
+						data["username"] = "{% trans 'You' %}";
+						chatSocket.send(JSON.stringify({
+							command:"leave",
+							need_notify:false,
+							gid:data.room_id,
+						}));
+						$(".chat_item[data-gid='"+data.room_id+"']").attr("data-opening", "false");
+					}else{
+						data["username"] = usr.username;
+					}
+					append_msg("system"+msg_suffix, data, false);
+				}
+			}
+			$(items).attr("data-members", data.members);
+			$(items).find("em").html("("+data.members+")");
+			// if(data.roomname==undefined){console.log(data.command);}
+			if(is_xs && $("#g_"+data.room_id).hasClass("hidden") == false){
+				document.querySelector(".navbar-brand").innerHTML=
+			"<span class='glyphicon glyphicon-comment'></sapn>&nbsp;"+"("+data.members+")"+data.roomname;
+			}
+		}
+	}
+
+	function alertkey(){
+  		// disactive pc and phone browser's back page, must be called in body's onload() or just run in script directly // or $(function()), not in function
+        if (window.history && window.history.pushState) {
+        	$(window).on('popstate', function () {
+        		window.history.pushState('forward', null, '#');
+        		window.history.forward(1); 
+        	});
+        }
+        window.history.pushState('forward', null, '#');  //在IE中必须得有这两行
+        window.history.forward(1);
+        // document.onkeydown = function(e){
+        // 	document.querySelector('#editArea').innerHTML=String(e.keyCode);
+        // };
+        document.querySelector("#editArea").onkeydown = function(e) {
+        	// console.log(e.keyCode);        	
+        	if(e.keyCode === 13) { // enter, return
+                
+				xs_need_justify_shift = false;
+                sendmsg('text'+msg_suffix);
+                // document.querySelector('#editArea').innerHTML="";
+                return false;//if  no this code line,it still type a return keycode
+            }
+        };
+    	g_history = new Ghistory();
+    	autolink();
+	}
+	function autolink(){
+		var n = 0;
+		var delayrun = setInterval(function(){
+			n += 1;
+			if(n>3){
+				var chatdivs = document.querySelectorAll(".chat_item[data-opening='true']");
+				// console.log(chatdivs);
+		        [].forEach.call(chatdivs, function(obj){
+		        	// console.log(obj.dataset.gid);
+		        	chatSocket.send(JSON.stringify({command:"join", gid: obj.dataset.gid}));
+		        	// joinroom(obj);
+		        });
+		        clearInterval(delayrun);
+			}
+		},100);		
+	}
+	var heart_beat = setInterval(function(){
+		chatSocket.send(JSON.stringify({command:"heart_beat", message:"link_echo"}));
+	}, 100000);
+	function content_scroll(obj){
+		// console.log(obj.scrollTop, obj.scrollHeight, msgbox_height);
+    	if((obj.scrollHeight - obj.scrollTop) <= msgbox_height){
+    		$(obj).next().addClass("hidden"); 
+    		$(obj).next().find("em").text("最新消息");
+    	}else{
+			// $(obj).find(".unread-chat").removeClass("hidden");
+			$(obj).next().removeClass("hidden");
+    	}
+	}
+
+	function set_msg_type(name){
+		e = $("input[name='msg_type']")[0];
+		ec = $("input[name='content']")[0];
+		switch(name){
+			case 'video':
+				e.value=3;ec.value='video';
+				break;
+			case 'file':
+				e.value=4;ec.value='file';
+				break;
+			default:
+				e.value=2;ec.value='image';
+		}
+	}
+
+	function new_msg_id(){
+		var i=msg_index++;
+		return randomString()+"_"+String(i);
+	}
+
+	function formatSize(size, pointLength, units) {
+		var unit;
+		units = units || [ 'B', 'K', 'M', 'G', 'TB' ];
+		while ( (unit = units.shift()) && size > 1024 ) {
+		   size = size / 1024;
+		}
+		return (unit === 'B' ? size : size.toFixed( pointLength === undefined ? 2 : pointLength)) + unit;
+	}
+	function turn2newest(){
+		$("#g_"+id_to_group.value+" .unread-chat").addClass("hidden");
+		document.querySelector("#end_"+id_to_group.value).scrollIntoView();
+		document.querySelector(".navbar-brand").click();
+	}
+	function image_rotate(){
+		var rote = $("#img_preview");
+		var deg = rote.attr("class");
+		var rotates = ['rotate0','rotate90', 'rotate180','rotate270','rotate0'];
+		while(rdeg=rotates.shift()){
+			if(rdeg == deg){break;}
+		}
+		rote.attr("class",rotates.shift());
+	}
+
+	function imagechange(obj){
+        if(obj.value!=undefined && obj.value!=null && obj.value!=""){
+        	for(var i=0; i < obj.files.length; ++i){
+	        	set_msg_type(obj.name);
+	        	mid = new_msg_id();
+	        	rdatas[mid] = new Mdata();
+	        	prepush_msg(obj, mid, rdatas[mid], i);
+	        	if(rdatas[mid].doPost){
+	        		const formdata = new FormData(document.querySelector("#upload_form"));
+	        		formdata.set(rdatas[mid].msg_type, obj.files[i]);
+	        		formdata.set("mid", mid);
+	        		var whichajax = $.ajax({
+	        			url:"",
+	        			type:"POST",
+	        			data:formdata,
+	        			// cache:false,//means that announce browser not to cache this page data.
+	        			processData: false,
+						contentType: false,
+	        			success: function(result) {
+			                if(result.msg_type=='image'){
+			                	$("#"+result.mid+" .msg-img").attr("onclick", "show_picture(this,'"+static_root+result.image+"')");
+			                }else if(result.msg_type=='video'){
+
+			                	$("#"+result.mid+" .msg-img").attr("onclick", "show_video(this,'"+static_root+result.video+"')");
+			                }else if(result.msg_type=="file"){
+			                	$("#"+result.mid+" a").remove();
+			                	$("#"+result.mid+" .opr").append("<a  download='' href='"+static_root+result.file+"'>下载</a>");
+			                }
+			                $("#"+result.mid+" .loading").hide();
+			                // console.log(JSON.stringify(result));
+			                var content = new Mdata();
+			            	content = mapdata(result, content);
+			            	content.msgFileSize = rdatas[result.mid].msgFileSize;
+			            	content.msgFileName = rdatas[result.mid].msgFileName;
+			            	// console.log(rdata[result.mid].filesize)
+			            	if(rdatas[result.mid].filesize<800*1024){
+			            		content.msgImgDataUrl = rdatas[result.mid].msgImgDataUrl;
+			            	}else{
+			            		content.msgImgDataUrl = static_root+content.msgFileUrl;
+			            	}
+			                content.command = 'send';
+			                try{
+								chatSocket.send(JSON.stringify(content));
+							}catch(Error){
+								console.error(Error);
+								$("#"+rdatas[result.mid].mid+" .ico_fail").toggleClass("hidden");
+								$("#"+rdatas[result.mid].mid+" .ico_fail").attr("title", "群发失败");
+							}
+			            },
+			            error: function(e){
+			            	console.error(JSON.stringify(e));
+			            	$("#"+rdatas[mid].mid+" .loading").hide();
+			            	$("#"+rdatas[mid].mid+" a").remove();
+			            	if(rdatas[mid].msg_type=="file"){
+				            	if(e.statusText == "abort"){
+				            		$("#"+rdatas[mid].mid+" .opr").append("<em class='bg-info'>已取消</em>");
+				            	}else{
+					            	$("#"+rdatas[mid].mid+" .opr").append("<em class='bg-danger'>上传失败</em>");
+					            	$("#"+rdatas[mid].mid+" .ico_fail").toggleClass("hidden");
+					            }
+					        }else{
+				            	$("#"+rdatas[mid].mid+" .ico_fail").toggleClass("hidden");
+				            }
+			            },
+	        		});
+	        		if(rdatas[mid].msg_type == "file"){
+	        			ready_to_cancel[rdatas[mid].mid] = whichajax;
+	        		}
+		        }
+		    }
+        }
+    }
+    
+    function prepush_msg(obj, mid, rdata, i){
+    	ufile = obj.files[i];
+    	// console.log(ufile.name);
+    	ftype = obj.name;
+    	if(ufile.size >= (fmaxsize[ftype])*1024*1024){
+    		alert("file too large");
+    		rdata.doPost=false;
+    		return;
+    	}
+		rdata.mid=mid;
+		rdata.msg_type=ftype;
+		rdata.msgContent=ftype;
+		rdata.msgFileName=obj.value.split('\\').pop();
+		rdata.msgFileUrl="";
+		rdata.msgFileSize=formatSize(ufile.size);
+		rdata.filesize = ufile.size;
+    	if(ftype=="image"){
+    		handle_image(ftype, rdata, ufile);
+    	}else if(ftype=="video"){
+    		handle_video(ftype, rdata, ufile);
+    	}else if(ftype=="file"){
+    		handle_file(ftype, rdata, ufile);
+    	}
+    }
+
+    function handle_file(ftype, rdata, ufile){
+    	append_msg(ftype+msg_suffix, rdata, false);
+    }
+
+    function upload_cancel(whichid){
+    	fileajax = ready_to_cancel[whichid];
+    	if( fileajax!= undefined && fileajax!=null){
+    		fileajax.abort();
+    	}
+    }
+
+    function handle_video(ftype, rdata, ufile){
+    	src = URL.createObjectURL(ufile);
+    	reader = new FileReader(ufile);
+    	vdata = rdata;
+    	v.src = src;
+    }
+
+    function handle_image(ftype, rdata, ufile){
+    	reader = new FileReader();
+    	reader.readAsDataURL(ufile);
+    	reader.onload = function(e){
+    		// alert("reader loading.");
+    		rdata.msgImgDataUrl=this.result;
+			append_msg(ftype+msg_suffix, rdata, false);
+    	}
+    }
+	function sendmsg(t, data){
+		if(typeof data == "undefined"){
+			if(t.startsWith('text')){
+				msg=document.getElementById('editArea').innerHTML;
+				msg=msg.trim();
+				if(msg==""){return;}
+				rdata=new Mdata();
+				rdata.mid=new_msg_id();
+				document.querySelector('#editArea').innerHTML="";
+				rdata.msgContent=msg;
+			}
+		}else{
+			rdata=data;
+		}
+		// $("#editArea").empty();
+		if(xs_need_justify_shift){
+			document.querySelector(".navbar-brand").click();
+		}else{
+			xs_need_justify_shift = true;
+			// editArea.focus();
+		}
+		append_msg(t, rdata, false);
+		// console.log(xs_need_justify_shift, rdata.msgContent);
+		
+		// document.querySelector(".navbar-brand").click();
+
+		rdata.command="send";
+		rdata.toMe = false;
+		// console.log(JSON.stringify(rdata));
+		data = {
+			csrfmiddlewaretoken: $("input[name='csrfmiddlewaretoken']").val(),
+			msg_type: 1,
+			from_user: id_from_user.value,
+			to_group: id_to_group.value,
+			to_user: id_to_user.value,
+			content: rdata.msgContent,
+		};
+		$.ajax({
+			url:"",
+			data:data,
+			type:"POST",
+			success:function(result, status){
+				console.log(status);
+			},
+			error:function(error, status){
+				console.log("error raised when post text message.");
+				$("#"+rdata.mid+" .ico_fail").toggleClass("hidden");
+			},
+		});
+		try{
+			chatSocket.send(JSON.stringify(rdata));
+		}catch(Error){
+			$("#"+rdata.mid+" .ico_fail").toggleClass("hidden");
+		}
+	}
+	function append_msg(t, rdata, fromws){
+		// $('#editArea').append(JSON.stringify(rdata));
+		if(rdata.toMe==true && fromws==true){return false;}
+		var gdiv = document.querySelector("#g_"+rdata.gid).children[0];
+		// console.log(gdiv);
+		// gid = gdiv.children[0];
+		//if use $("#scroll-content") raise some diffirent situation
+		// console.log("scrollTop", gdiv.scrollTop, gdiv.scrollHeight, msgbox_height);
+		//console print 0, 414
+		var needscroll=true;
+		if((gdiv.scrollHeight - gdiv.scrollTop)>msgbox_height){
+			needscroll=false;
+		}
+		if(rdata.mid == undefined){rdata.mid = new_msg_id();}
+		$("#"+rdata.gid).append(render(t, rdata));
+		// 滚动到div块底部的2种方法	
+		// console.log("scrollTop", gdiv.scrollTop, gdiv.scrollHeight);//console print 0, 610
+		if(rdata.gid == id_to_group.value){
+			if(needscroll || !fromws){
+			// document.querySelector("#end_"+rdata.gid).scrollIntoView();
+			turn2newest();
+			}
+		}else{
+			handle_badge(rdata.gid, 1);
+		}
+		return true;
+	}
+	function show_video(obj, url) {
+		var width=obj.naturalWidth, height=obj.naturalHeight,mleft=0,cuty=80;
+		// console.log(width, height);
+		if(screen.width>768){
+			width = 800;
+			height = 500;
+			mleft=1;
+		}else{
+			width=screen.availWidth;
+			height=Math.ceil(obj.height/obj.width*width);
+			if(height > screen.availHeight-80){
+				height=screen.availHeight-80;
+				width=Math.ceil(obj.width/obj.height*height);
+			}
+		}
+		data = {msgLoadUrl:url, width:width, height:height, mleft:mleft,scrwidth:screen.availWidth, scrheight:screen.availHeight,};
+		preview('video'+view_suffix, url, data);
+	}
+	function show_picture(obj, url){
+		var width=obj.naturalWidth, height=obj.naturalHeight,mleft=0;
+		// console.log(width, height);
+		if(screen.width>768){
+			width=Math.ceil(screen.width/2);
+			mleft=Math.ceil(screen.width/2-width/2);
+		}else{
+			width = screen.width;
+		}
+		data = {msgLoadUrl:url, width:width, height:screen.height-100, mleft:mleft,};
+		preview('picture'+view_suffix, url, data);
+	}
+	function preview(t, url, data){
+		// $("#editArea").append(String(screen.width)+" "+String(screen.height)+" "+String(data.mleft));
+		$("#id_preview").append(render(t, data));
+	}
+	function render(t, data){
+		// alert(JSON.stringify(data));
+		m=document.getElementById(t).innerHTML;
+		textMsgRender=template.compile(m);
+		html=textMsgRender({data:data});
+		// console.log(html);
+		return html;
+	}
+	function close_preview(){
+		$("#id_preview").empty();
+	}
+</script>
+{{ block.super }}
+<script type="text/javascript">
+	function group_info(obj){
+		$.ajax({
+			url: "{% url 'updateroom' %}"+obj.dataset.gid+'/',
+			type:"GET",
+			success: function(result, status){
+				// console.log(result);
+				$("#update_chatroom_modal .modal-content").html(result.content);
+				$("#update_chatroom_modal").modal("show");
+				create_qrcode(obj.dataset.gid);
+			},
+			error: function(error, status){
+				// console.log(error.responseJSON);
+				$("#update_chatroom_modal .modal-content").html(error.responseJSON.content);
+				create_qrcode(obj.dataset.gid);
+			},
+		});
+	}
+	function update_chatroom(){
+		$("#update_chatroom").ajaxSubmit({
+			success: function(result, status){
+				$("#update_chatroom_modal").modal('hide');
+				$("#update_chatroom_modal .modal-content").empty();
+				if(result.remove_users){
+					chatSocket.send(JSON.stringify({
+						command:"remove",
+						remove_users:result.remove_users,
+						gid:result.chatgroup.group_uuid,
+						roomname:result.chatgroup.group_name,
+					}))
+				}
+			},
+			error: function(error, status){
+				// console.log(error.responseJSON);
+				$("#update_chatroom_modal .modal-content").html(error.responseJSON.content);
+				create_qrcode($("#update_chatroom").find("#id_group_uuid").val());
+			},
+		});
+	}
+	function create_qrcode(append){
+		// jurl = "http://192.168.5.106:8000{% url 'xjoinroom' %}?g="+append;
+		jurl = window.location.protocol+"//"+location.host+"{% url 'xjoinroom' %}?g="+append;
+		$("div#copylink").text(jurl);
+		jQuery('#qrcode').qrcode({
+			text: jurl,
+		});
+	}
+	function call_after_leave_or_delete(result, status, need_notify=true){
+		// console.log(result);
+		$(".chat_item[data-gid='"+result.gid+"']").remove();
+		$("#g_"+result.gid).remove();
+		$("#g_empty").removeClass('hidden');
+		$("#editdiv").addClass('hidden');
+		$("#update_chatroom_modal").modal('hide');
+		$("#update_chatroom_modal .modal-content").empty();
+		document.querySelector(".navbar-brand").innerHTML="Hidelete.ml";
+		// chatSocket.send("delete chatroom")
+		chatSocket.send(JSON.stringify({
+			command:"leave",
+			need_notify:need_notify,
+			gid:result.gid,
+			roomname:result.group_name,
+		}));
+	}
+	function delete_chatroom(obj, url){
+		$("#update_chatroom").ajaxSubmit({
+			url: url,
+			success:call_after_leave_or_delete,
+			error:function(error, status){
+				$("#update_chatroom_modal .modal-body").append("<p class='errornote>"+error.responseJSON.messages+"</p>");
+				console.error(error.responseJSON);
+			},
+		});
+	}
+	function leave_chatroom(obj, url){
+		$.ajax({
+			url: url,
+			success: call_after_leave_or_delete,
+			error:function(error, status){
+				$("#update_chatroom_modal .modal-body").append("<p class='errornote>"+error.responseJSON.messages+"</p>");
+				console.error(error.responseJSON);
+			},
+		});
+	}
+	function remove_chatroom(obj, gid=null){
+		if(gid && $(".chat_item[data-gid='"+gid+"']")){
+			call_after_leave_or_delete({gid:gid}, 400, false);
+		}
+	}
+	function select_all_text(obj){
+	    var text=obj;
+	    if (document.body.createTextRange) {
+            var range = document.body.createTextRange();
+            range.moveToElementText(text);
+            range.select();
+        } else if (window.getSelection) {
+            var selection = window.getSelection();
+            var range = document.createRange();
+            range.selectNodeContents(text);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+	}
+</script>
+{% endblock %}
+{% block modalblock%}{{ block.super }}
+<div id="update_chatroom_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="chatroom_update_modal_lable" style="margin-top: 20px;display:none;">
+    <div class="modal-dialog modal-md" role="document">
+        <div class="modal-content"></div>
+    </div>
+</div>
+{% endblock%}

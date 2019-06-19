@@ -1,0 +1,17 @@
+{% load i18n %}
+<div class="modal-body">
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+    <h4 class="modal-title">Chatroom Profile</h4>
+</div>
+{% if iderror %}
+<div class="errornote">
+<h4>{{iderror}}</h4>
+</div>
+{% endif %}
+</div>
+<div class="modal-footer">
+	<button class="btn btn-default pull-right" onclick="remove_chatroom(this{% if command %},'{{pk}}'{% endif %})" title="Remove Chatroom">Remove Chatroom</button>
+</div>
